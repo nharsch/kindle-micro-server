@@ -186,10 +186,14 @@ def build_html(now=None):
         day = today + timedelta(days=i)
         events, day_errors = events_on(day)
         errors.update(day_errors)
+        if not events:
+            continue
         sections.append(
             f'<section class="{"today" if i == 0 else "later"}"><h2>{day_label(day, today)}</h2>'
             f'<ul>{event_rows(events, now, multi_cal)}</ul></section>'
         )
+    if not sections:
+        sections.append('<section><ul><li class="empty">Nothing scheduled</li></ul></section>')
     todo_html = todo_section(todo_tasks(today))
     temp = current_temp()
     temp_html = f'<div class="temp">{temp}°</div>' if temp is not None else ""
