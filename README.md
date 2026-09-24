@@ -20,7 +20,8 @@ cp config.example.json config.json   # add your secret iCal URL(s); gitignored
 ```
 
 - `http://localhost:8787/preview`: the HTML that gets screenshotted
-- `polls.csv`: one line per Kindle poll: time, battery %, MAC
+- `polls.csv`: one line per Kindle poll: time, battery %, MAC, forced (tap)
+- A tap on the Kindle sends `force-refresh: 1`, which makes the server skip its caches (calendar 10 min, weather 15 min, Todoist 5 min)
 - Needs Google Chrome at `/Applications/Google Chrome.app`
 - Run at login: copy `com.njh.kindle-calendar.plist` to `~/Library/LaunchAgents/` and `launchctl load -w` it
 

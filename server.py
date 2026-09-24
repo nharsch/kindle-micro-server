@@ -318,7 +318,8 @@ def render_png(page_html):
 
 def log_poll(headers):
     with open(ROOT / "polls.csv", "a") as f:
-        f.write(f'{datetime.now(TZ).isoformat(timespec="seconds")},{headers.get("percent-charged", "")},{headers.get("ID", "")}\n')
+        f.write(f'{datetime.now(TZ).isoformat(timespec="seconds")},{headers.get("percent-charged", "")},'
+                f'{headers.get("ID", "")},{"forced" if headers.get("force-refresh") else ""}\n')
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -336,6 +337,11 @@ class Handler(BaseHTTPRequestHandler):
             if token and self.headers.get("access-token") != token:
                 return self.send(401, b'{"error": "bad access-token"}', "application/json")
             log_poll(self.headers)
+            if self.headers.get("force-refresh"):
+                # Tapped on the Kindle: refetch calendar, weather and Todoist now
+                _ics_cache.clear()
+                _weather_cache.clear()
+                _todo_cache.clear()
             name = render_png(build_html())
             body = json.dumps({
                 "image_url": f'http://{CONFIG["public_host"]}:{CONFIG["port"]}/screens/{name}',

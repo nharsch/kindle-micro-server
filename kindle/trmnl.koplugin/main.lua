@@ -328,6 +328,8 @@ function TrmnlDisplay:fetchScreenMetadata()
             ["rssi"] = "0",                            -- WiFi signal strength (TODO: implement)
             [mac_header_name] = mac_address,           -- MAC address with custom header name
             ["User-Agent"] = self.settings.user_agent, -- Plugin identification
+            -- njh patch: ask the server to bypass its caches (set by tap); nil drops the header
+            ["force-refresh"] = self.force_refresh and "1" or nil,
         },
         sink = ltn12.sink.table(sink),                 -- Response body stored in 'sink' table
         -- SSL/TLS configuration for HTTPS
@@ -338,6 +340,7 @@ function TrmnlDisplay:fetchScreenMetadata()
 
     -- Choose HTTP or HTTPS based on URL scheme
     local httpx = request_url:match("^https://") and https or http
+    self.force_refresh = nil -- one-shot: only the request right after a tap forces
     local success_code, status_code = httpx.request(request)
 
     logger.dbg("TRMNL: Success code:", success_code)
@@ -475,6 +478,7 @@ function TrmnlDisplay:displayImage(image_path)
     -- njh patch: tap refreshes (family dashboard); long-press closes to get at KOReader
     self.image_widget.onTapRefresh = function()
         logger.info("TRMNL: Refreshing via tap")
+        self.force_refresh = true
         self:fetchAndDisplay(true)
         return true
     end
