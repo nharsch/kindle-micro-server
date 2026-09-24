@@ -4,12 +4,41 @@ A family daily calendar on a jailbroken 2012 Kindle Paperwhite (PW1, firmware 5.
 
 The Kindle runs [KOReader](https://github.com/koreader/koreader) with the [TRMNL KOReader plugin](https://github.com/usetrmnl/trmnl-koreader). The plugin is pointed at this server instead of trmnl.com.
 
+## Render pipeline
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant K as Kindle<br/>KOReader + trmnl.koplugin
+    participant S as server.py<br/>Mac, port 8787
+    participant U as Upstream<br/>iCal, Open-Meteo, Todoist
+    participant C as Headless Chrome
+
+    Note over K: every 15 min, or on tap
+    K->>S: GET /api/display (access-token, percent-charged, MAC, force-refresh if tapped)
+    S->>S: log poll to polls.csv
+    opt tapped (force-refresh)
+        S->>S: clear caches
+    end
+    S->>U: fetch whatever is not cached (iCal 10 min, weather 15 min, Todoist 5 min)
+    U-->>S: events, temperature + weather code, grocery tasks
+    S->>S: build_html() at 758x1024, name = cal-sha1(html).png
+    opt no PNG for this HTML yet
+        S->>C: screenshot the page
+        C-->>S: PNG, then sips to grayscale, saved to screens/
+    end
+    S-->>K: JSON with image_url, filename, refresh_rate
+    alt filename changed
+        K->>S: GET /screens/cal-hash.png
+        S-->>K: PNG
+        K->>K: draw full screen (e-ink refresh)
+    else same filename
+        K->>K: redisplay cached PNG
+    end
+    Note over K: schedule next poll after refresh_rate
 ```
-Google Calendar (secret iCal URL)
-  → server.py: events → 758×1024 HTML → headless Chrome screenshot → grayscale PNG
-  → GET /api/display  {image_url, filename, refresh_rate}
-  → Kindle (trmnl.koplugin) downloads the PNG when the filename changes and shows it full screen
-```
+
+The PNG's filename is a hash of the page HTML, so the Kindle re-downloads (and the e-ink panel fully redraws) only when something on screen actually changed.
 
 ## Server (Mac)
 
