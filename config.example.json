@@ -1,0 +1,13 @@
+{
+  "port": 8787,
+  "public_host": "192.168.0.201",
+  "refresh_seconds": 900,
+  "timezone": "America/Los_Angeles",
+  "token": "kindle-calendar-local",
+  "calendars": [
+    {
+      "name": "Family",
+      "url": "https://calendar.google.com/calendar/ical/.../private-.../basic.ics"
+    }
+  ]
+}

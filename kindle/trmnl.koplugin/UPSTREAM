@@ -1,0 +1,1 @@
+trmnl-koreader @ 3dc7ff6 (https://github.com/usetrmnl/trmnl-koreader), patched: tap = fetch now, hold = close; onCloseWidget no longer persists auto-refresh off

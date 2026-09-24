@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+config.json
+screens/
+polls.csv
+server.log
