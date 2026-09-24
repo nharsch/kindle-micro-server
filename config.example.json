@@ -1,7 +1,7 @@
 {
   "port": 8787,
   "public_host": "192.168.0.201",
-  "refresh_seconds": 900,
+  "refresh_seconds": 3600,
   "timezone": "America/Los_Angeles",
   "token": "kindle-calendar-local",
   "weather": {"label": "Arcadia 91007", "latitude": 34.1243, "longitude": -118.0515},
