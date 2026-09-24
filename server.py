@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,6 +36,8 @@ DAYS_SHOWN = 4
 
 _ics_cache = {}  # url -> (fetched_at, Calendar)
 _weather_cache = {}  # "current" -> (fetched_at, temp_f)
+_todo_cache = {}  # "tasks" -> (fetched_at, tasks)
+TODO_TTL = 300
 _render_lock = threading.Lock()
 
 
@@ -98,6 +101,38 @@ def current_temp():
     return temp
 
 
+def todo_tasks(today):
+    """Open Todoist tasks matching the configured filter, or None if unconfigured/unavailable."""
+    todoist = CONFIG.get("todoist")
+    if not todoist or not todoist.get("token"):
+        return None
+    cached = _todo_cache.get("tasks")
+    if cached and time.time() - cached[0] < TODO_TTL:
+        return cached[1]
+    query = urllib.parse.urlencode({"query": todoist.get("filter", "#Family & (today | overdue)")})
+    req = urllib.request.Request(
+        f"https://api.todoist.com/api/v1/tasks/filter?{query}",
+        headers={"Authorization": f'Bearer {todoist["token"]}'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.load(resp)
+    except Exception as e:
+        print(f"todoist: {e}", file=sys.stderr)
+        return cached[1] if cached else None
+    tasks = []
+    for t in data.get("results", data) if isinstance(data, dict) else data:
+        due = (t.get("due") or {}).get("date", "")[:10]
+        tasks.append({
+            "content": t["content"],
+            "overdue": bool(due) and due < today.isoformat(),
+            "order": (-t.get("priority", 1), due, t.get("child_order", 0)),
+        })
+    tasks.sort(key=lambda t: t["order"])
+    _todo_cache["tasks"] = (time.time(), tasks)
+    return tasks
+
+
 # --- Rendering ---------------------------------------------------------------
 
 def fmt_time(dt):
@@ -116,6 +151,22 @@ def event_rows(events, now, multi_cal):
             f'<span class="what">{html.escape(e["title"])}{label}</span></li>'
         )
     return "\n".join(rows) or '<li class="empty">Nothing scheduled</li>'
+
+
+def todo_section(tasks):
+    if tasks is None:
+        return ""
+    todoist = CONFIG["todoist"]
+    limit = todoist.get("max_items", 8)
+    rows = "\n".join(
+        f'<li><span class="box"></span><span class="what">{html.escape(t["content"])}'
+        f'{"<span class=cal>overdue</span>" if t["overdue"] else ""}</span></li>'
+        for t in tasks[:limit]
+    ) or '<li class="empty">All done</li>'
+    if len(tasks) > limit:
+        rows += f'<li class="empty">+{len(tasks) - limit} more</li>'
+    title = html.escape(todoist.get("title", "To do"))
+    return f'<section class="todo"><h2>{title}</h2><ul>{rows}</ul></section>'
 
 
 def day_label(day, today):
@@ -139,6 +190,8 @@ def build_html(now=None):
             f'<section class="{"today" if i == 0 else "later"}"><h2>{day_label(day, today)}</h2>'
             f'<ul>{event_rows(events, now, multi_cal)}</ul></section>'
         )
+        if i == 0:
+            sections.append(todo_section(todo_tasks(today)))
     temp = current_temp()
     temp_html = f'<div class="temp">{temp}°</div>' if temp is not None else ""
     error_html = f'<p class="error">Calendar unavailable: {html.escape("; ".join(sorted(errors)))}</p>' if errors else ""
@@ -163,6 +216,8 @@ def build_html(now=None):
   .cal {{ font-size: 18px; color: #666; margin-left: 12px; }}
   section {{ margin-bottom: 24px; }}
   section.later li {{ font-size: 23px; padding: 6px 0; }}
+  section.todo li {{ font-size: 26px; padding: 7px 0; align-items: center; }}
+  .box {{ flex: 0 0 22px; height: 22px; border: 2px solid #000; margin: 0 20px 0 4px; }}
   .error {{ position: absolute; bottom: 20px; left: 44px; right: 44px; font-size: 18px; color: #555; }}
 </style></head>
 <body>
