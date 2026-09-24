@@ -30,8 +30,11 @@ SCREENS = ROOT / "screens"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 GRAY_PROFILE = "/System/Library/ColorSync/Profiles/Generic Gray Gamma 2.2 Profile.icc"
 ICS_TTL = 600  # seconds to cache each calendar feed
+WEATHER_TTL = 900
+DAYS_SHOWN = 4
 
 _ics_cache = {}  # url -> (fetched_at, Calendar)
+_weather_cache = {}  # "current" -> (fetched_at, temp_f)
 _render_lock = threading.Lock()
 
 
@@ -75,6 +78,26 @@ def events_on(day):
     return events, errors
 
 
+def current_temp():
+    """Current temperature (°F) from Open-Meteo, or None if unconfigured/unavailable."""
+    weather = CONFIG.get("weather")
+    if not weather:
+        return None
+    cached = _weather_cache.get("current")
+    if cached and time.time() - cached[0] < WEATHER_TTL:
+        return cached[1]
+    url = ("https://api.open-meteo.com/v1/forecast"
+           f'?latitude={weather["latitude"]}&longitude={weather["longitude"]}'
+           "&current=temperature_2m&temperature_unit=fahrenheit")
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            temp = round(json.load(resp)["current"]["temperature_2m"])
+    except Exception:
+        return cached[1] if cached else None
+    _weather_cache["current"] = (time.time(), temp)
+    return temp
+
+
 # --- Rendering ---------------------------------------------------------------
 
 def fmt_time(dt):
@@ -95,42 +118,62 @@ def event_rows(events, now, multi_cal):
     return "\n".join(rows) or '<li class="empty">Nothing scheduled</li>'
 
 
+def day_label(day, today):
+    if day == today:
+        return "Today"
+    if day == today + timedelta(days=1):
+        return f"Tomorrow · {day.strftime('%A')}"
+    return day.strftime("%A · %b %-d")
+
+
 def build_html(now=None):
     now = now or datetime.now(TZ)
-    today, tomorrow = now.date(), now.date() + timedelta(days=1)
-    today_events, errors = events_on(today)
-    tomorrow_events, _ = events_on(tomorrow)
+    today = now.date()
     multi_cal = len(CONFIG["calendars"]) > 1
-    error_html = f'<p class="error">Calendar unavailable: {html.escape("; ".join(errors))}</p>' if errors else ""
+    sections, errors = [], set()
+    for i in range(DAYS_SHOWN):
+        day = today + timedelta(days=i)
+        events, day_errors = events_on(day)
+        errors.update(day_errors)
+        sections.append(
+            f'<section class="{"today" if i == 0 else "later"}"><h2>{day_label(day, today)}</h2>'
+            f'<ul>{event_rows(events, now, multi_cal)}</ul></section>'
+        )
+    temp = current_temp()
+    temp_html = f'<div class="temp">{temp}°</div>' if temp is not None else ""
+    error_html = f'<p class="error">Calendar unavailable: {html.escape("; ".join(sorted(errors)))}</p>' if errors else ""
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ width: {WIDTH}px; height: {HEIGHT}px; overflow: hidden; background: #fff; color: #000;
-          font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; padding: 48px 44px; }}
-  header {{ border-bottom: 4px solid #000; padding-bottom: 20px; margin-bottom: 28px; }}
-  h1 {{ font-family: Georgia, serif; font-size: 76px; line-height: 1; letter-spacing: -1px; }}
-  .date {{ font-size: 34px; margin-top: 10px; color: #333; }}
-  h2 {{ font-size: 22px; text-transform: uppercase; letter-spacing: 3px; color: #555; margin: 0 0 14px; }}
+          font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; padding: 36px 44px; }}
+  header {{ display: flex; justify-content: space-between; align-items: flex-end;
+            border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 20px; }}
+  h1 {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; letter-spacing: -0.5px; }}
+  .date {{ font-size: 24px; margin-top: 6px; color: #333; }}
+  .temp {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; }}
+  h2 {{ font-size: 18px; text-transform: uppercase; letter-spacing: 3px; color: #555; margin: 0 0 6px; }}
   ul {{ list-style: none; }}
-  li {{ display: flex; align-items: baseline; font-size: 32px; line-height: 1.25; padding: 12px 0;
+  li {{ display: flex; align-items: baseline; font-size: 28px; line-height: 1.25; padding: 9px 0;
         border-bottom: 1px solid #bbb; }}
   li.past {{ color: #888; }}
   li.empty {{ color: #777; font-style: italic; border: none; }}
-  .when {{ flex: 0 0 150px; font-weight: 700; font-variant-numeric: tabular-nums; }}
+  .when {{ flex: 0 0 130px; font-weight: 700; font-variant-numeric: tabular-nums; }}
   .what {{ flex: 1; }}
-  .cal {{ font-size: 20px; color: #666; margin-left: 12px; }}
-  section.tomorrow {{ margin-top: 40px; }}
-  section.tomorrow li {{ font-size: 25px; padding: 8px 0; }}
-  section.tomorrow .when {{ flex-basis: 150px; }}
-  .error {{ position: absolute; bottom: 24px; left: 44px; right: 44px; font-size: 18px; color: #555; }}
+  .cal {{ font-size: 18px; color: #666; margin-left: 12px; }}
+  section {{ margin-bottom: 24px; }}
+  section.later li {{ font-size: 23px; padding: 6px 0; }}
+  .error {{ position: absolute; bottom: 20px; left: 44px; right: 44px; font-size: 18px; color: #555; }}
 </style></head>
 <body>
   <header>
-    <h1>{today.strftime("%A")}</h1>
-    <div class="date">{today.strftime("%B %-d, %Y")}</div>
+    <div>
+      <h1>{today.strftime("%A")}</h1>
+      <div class="date">{today.strftime("%B %-d, %Y")}</div>
+    </div>
+    {temp_html}
   </header>
-  <section class="today"><h2>Today</h2><ul>{event_rows(today_events, now, multi_cal)}</ul></section>
-  <section class="tomorrow"><h2>Tomorrow · {tomorrow.strftime("%A")}</h2><ul>{event_rows(tomorrow_events, now, multi_cal)}</ul></section>
+  {"".join(sections)}
   {error_html}
 </body></html>"""
 

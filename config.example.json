@@ -4,6 +4,7 @@
   "refresh_seconds": 900,
   "timezone": "America/Los_Angeles",
   "token": "kindle-calendar-local",
+  "weather": {"label": "Arcadia 91007", "latitude": 34.1243, "longitude": -118.0515},
   "calendars": [
     {
       "name": "Family",
