@@ -81,8 +81,30 @@ def events_on(day):
     return events, errors
 
 
-def current_temp():
-    """Current temperature (°F) from Open-Meteo, or None if unconfigured/unavailable."""
+WINDY_MPH = 20
+
+
+def weather_icon(code, wind_mph, is_day):
+    """Map a WMO weather code (+ wind, day/night) to one of the WEATHER_ICONS keys."""
+    if code >= 95:
+        return "storm"
+    if code in (71, 73, 75, 77, 85, 86):
+        return "snow"
+    if code >= 51:
+        return "rain"
+    if wind_mph >= WINDY_MPH:
+        return "wind"
+    if code in (45, 48):
+        return "fog"
+    if code == 3:
+        return "cloudy"
+    if code == 2:
+        return "partly"
+    return "sun" if is_day else "moon"
+
+
+def current_weather():
+    """{"temp": °F, "icon": key} from Open-Meteo, or None if unconfigured/unavailable."""
     weather = CONFIG.get("weather")
     if not weather:
         return None
@@ -91,14 +113,42 @@ def current_temp():
         return cached[1]
     url = ("https://api.open-meteo.com/v1/forecast"
            f'?latitude={weather["latitude"]}&longitude={weather["longitude"]}'
-           "&current=temperature_2m&temperature_unit=fahrenheit")
+           "&current=temperature_2m,weather_code,wind_speed_10m,is_day"
+           "&temperature_unit=fahrenheit&wind_speed_unit=mph")
     try:
         with urllib.request.urlopen(url, timeout=10) as resp:
-            temp = round(json.load(resp)["current"]["temperature_2m"])
+            cur = json.load(resp)["current"]
     except Exception:
         return cached[1] if cached else None
-    _weather_cache["current"] = (time.time(), temp)
-    return temp
+    now = {
+        "temp": round(cur["temperature_2m"]),
+        "icon": weather_icon(cur["weather_code"], cur["wind_speed_10m"], cur["is_day"]),
+    }
+    _weather_cache["current"] = (time.time(), now)
+    return now
+
+
+# Line-art weather icons (48x48, black strokes) that stay crisp on e-ink
+_CLOUD = '<path d="M14 34h21a7 7 0 0 0 0-14 10 10 0 0 0-19-3 8.5 8.5 0 0 0-2 17z"/>'
+_CLOUD_HIGH = f'<g transform="translate(0 -6)">{_CLOUD}</g>'
+WEATHER_ICONS = {
+    "sun": '<circle cx="24" cy="24" r="8"/>'
+           '<path d="M24 5v6M24 37v6M5 24h6M37 24h6M10.6 10.6l4.2 4.2M33.2 33.2l4.2 4.2M10.6 37.4l4.2-4.2M33.2 14.8l4.2-4.2"/>',
+    "moon": '<path d="M31 8a16 16 0 1 0 9 27 13 13 0 0 1-9-27z"/>',
+    "partly": '<circle cx="17" cy="17" r="6"/><path d="M17 4v4M4 17h4M7.8 7.8l2.8 2.8M26.2 7.8l-2.8 2.8"/>'
+              '<path fill="#fff" d="M18 40h19a6 6 0 0 0 0-12 9 9 0 0 0-17-2.5 7.5 7.5 0 0 0-2 14.5z"/>',
+    "cloudy": _CLOUD,
+    "fog": _CLOUD_HIGH + '<path d="M10 36h28M14 42h20"/>',
+    "rain": _CLOUD_HIGH + '<path d="M16 34l-3 8M24 34l-3 8M32 34l-3 8"/>',
+    "snow": _CLOUD_HIGH + '<path d="M15 36h.01M24 36h.01M33 36h.01M19.5 42h.01M28.5 42h.01" stroke-width="5"/>',
+    "storm": _CLOUD_HIGH + '<path d="M25 30l-5 8h7l-4 8"/>',
+    "wind": '<path d="M6 18h22a5 5 0 1 0-5-5M6 26h30a5 5 0 1 1-5 5M6 34h14"/>',
+}
+
+
+def weather_svg(icon):
+    return (f'<svg class="wx" viewBox="0 0 48 48" fill="none" stroke="#000" stroke-width="3" '
+            f'stroke-linecap="round" stroke-linejoin="round">{WEATHER_ICONS[icon]}</svg>')
 
 
 def todo_tasks(today):
@@ -195,8 +245,8 @@ def build_html(now=None):
     if not sections:
         sections.append('<section><ul><li class="empty">Nothing scheduled</li></ul></section>')
     todo_html = todo_section(todo_tasks(today))
-    temp = current_temp()
-    temp_html = f'<div class="temp">{temp}°</div>' if temp is not None else ""
+    wx = current_weather()
+    temp_html = f'<div class="temp">{wx["temp"]}°{weather_svg(wx["icon"])}</div>' if wx else ""
     error_html = f'<p class="error">Calendar unavailable: {html.escape("; ".join(sorted(errors)))}</p>' if errors else ""
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -208,7 +258,8 @@ def build_html(now=None):
             border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 20px; }}
   h1 {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; letter-spacing: -0.5px; }}
   .date {{ font-size: 24px; margin-top: 6px; color: #333; }}
-  .temp {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; }}
+  .temp {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; display: flex; align-items: center; }}
+  .wx {{ width: 50px; height: 50px; margin-left: 12px; }}
   /* Groceries follow the calendar; on a busy week the calendar shrinks and clips so groceries stay visible */
   main {{ flex: 0 1 auto; min-height: 0; overflow: hidden; }}
   h2 {{ font-size: 21px; text-transform: uppercase; letter-spacing: 3px; color: #555; margin: 0 0 6px; }}
