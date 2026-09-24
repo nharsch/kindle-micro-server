@@ -205,8 +205,8 @@ def build_html(now=None):
   h1 {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; letter-spacing: -0.5px; }}
   .date {{ font-size: 24px; margin-top: 6px; color: #333; }}
   .temp {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; }}
-  /* Calendar takes the middle and clips if a busy week overflows; groceries stay pinned to the bottom */
-  main {{ flex: 1; overflow: hidden; }}
+  /* Groceries follow the calendar; on a busy week the calendar shrinks and clips so groceries stay visible */
+  main {{ flex: 0 1 auto; min-height: 0; overflow: hidden; }}
   h2 {{ font-size: 21px; text-transform: uppercase; letter-spacing: 3px; color: #555; margin: 0 0 6px; }}
   ul {{ list-style: none; }}
   li {{ display: flex; align-items: baseline; font-size: 32px; line-height: 1.25; padding: 10px 0;
