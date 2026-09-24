@@ -207,21 +207,21 @@ def build_html(now=None):
   .temp {{ font-family: Georgia, serif; font-size: 46px; line-height: 1; }}
   /* Calendar takes the middle and clips if a busy week overflows; groceries stay pinned to the bottom */
   main {{ flex: 1; overflow: hidden; }}
-  h2 {{ font-size: 27px; text-transform: uppercase; letter-spacing: 4px; color: #555; margin: 0 0 6px; }}
+  h2 {{ font-size: 21px; text-transform: uppercase; letter-spacing: 3px; color: #555; margin: 0 0 6px; }}
   ul {{ list-style: none; }}
-  li {{ display: flex; align-items: baseline; font-size: 42px; line-height: 1.2; padding: 10px 0;
+  li {{ display: flex; align-items: baseline; font-size: 32px; line-height: 1.25; padding: 10px 0;
         border-bottom: 1px solid #bbb; }}
   li.past {{ color: #888; }}
   li.empty {{ color: #777; font-style: italic; border: none; }}
-  .when {{ flex: 0 0 150px; font-weight: 700; font-variant-numeric: tabular-nums; }}
+  .when {{ flex: 0 0 140px; font-weight: 700; font-variant-numeric: tabular-nums; }}
   .what {{ flex: 1; }}
-  .cal {{ font-size: 27px; color: #666; margin-left: 14px; }}
-  section {{ margin-bottom: 22px; }}
-  section.later li {{ font-size: 35px; padding: 7px 0; }}
+  .cal {{ font-size: 21px; color: #666; margin-left: 12px; }}
+  section {{ margin-bottom: 24px; }}
+  section.later li {{ font-size: 26px; padding: 7px 0; }}
   section.todo {{ border-top: 3px solid #000; padding-top: 14px; margin-bottom: 0; }}
-  section.todo li {{ font-size: 39px; padding: 7px 0; align-items: center; }}
-  .box {{ flex: 0 0 30px; height: 30px; border: 3px solid #000; margin: 0 24px 0 4px; }}
-  .error {{ font-size: 27px; color: #555; margin-top: 10px; }}
+  section.todo li {{ font-size: 30px; padding: 8px 0; align-items: center; }}
+  .box {{ flex: 0 0 25px; height: 25px; border: 2px solid #000; margin: 0 22px 0 4px; }}
+  .error {{ font-size: 21px; color: #555; margin-top: 10px; }}
 </style></head>
 <body>
   <header>
