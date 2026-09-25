@@ -62,7 +62,7 @@ cp config.example.json config.json   # add your secret iCal URL(s); gitignored
 | `njh-boot.sh` | `/mnt/us/njh-boot.sh` | Remounts `/mnt/base-us` exec, starts SSH (:2222, key-only), keeps the Kindle awake, turns the frontlight off, launches KOReader |
 | `trmnl.koplugin/` | `/mnt/us/koreader/plugins/` | TRMNL plugin, patched: tap = refresh, long-press = close, auto-refresh survives KOReader restarts |
 
-Plugin settings live in `koreader/settings/trmnl.lua` (`base_url = "http://<mac>:8787"`, `auto_refresh_enabled = true`).
+Plugin settings live in `koreader/settings/trmnl.lua` (`base_url = "http://<mac>:8787"`, `auto_refresh_enabled = true`, `refresh_type = "full"`, since partial `ui` refreshes leave e-ink ghosting). Edit it only while KOReader is stopped, and restart with `ssh -p 2222 root@<kindle> 'sh -s' < kindle/restart-koreader.sh`.
 
 Kill switches (create an empty file on the Kindle's USB root): `NO_AUTOSTART` skips the whole boot script; `NO_KOREADER` keeps SSH but skips KOReader.
 
