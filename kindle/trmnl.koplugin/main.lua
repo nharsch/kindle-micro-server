@@ -479,6 +479,7 @@ function TrmnlDisplay:displayImage(image_path)
     self.image_widget.onTapRefresh = function()
         logger.info("TRMNL: Refreshing via tap")
         self.force_refresh = true
+        self:showRefreshing()
         self:fetchAndDisplay(true)
         return true
     end
@@ -620,6 +621,50 @@ function TrmnlDisplay:notify(message, opts)
         text = prefix .. full_message,
         timeout = timeout,
     })
+end
+
+--[[--
+njh patch: Wi-Fi on demand.
+
+Wi-Fi is off between fetches (it's ~half the idle power draw). A fetch (tap or timer)
+turns it on via NetworkMgr:runWhenConnected (needs wifi_enable_action = "turn_on"),
+and this keeps it up for WIFI_WINDOW seconds after the fetch finishes, which doubles
+as a window to SSH in. Each fetch restarts the window.
+]]
+TrmnlDisplay.WIFI_WINDOW = 120
+
+function TrmnlDisplay:scheduleWifiOff()
+    if not self.wifi_off_task then
+        self.wifi_off_task = function()
+            if NetworkMgr:isWifiOn() then
+                logger.info("TRMNL: Wi-Fi window over, turning Wi-Fi off")
+                NetworkMgr:disableWifi()
+            end
+        end
+    end
+    UIManager:unschedule(self.wifi_off_task)
+    logger.info("TRMNL: Wi-Fi off in", self.WIFI_WINDOW, "seconds")
+    UIManager:scheduleIn(self.WIFI_WINDOW, self.wifi_off_task)
+end
+
+-- Tap feedback: connecting Wi-Fi takes ~10 s, so say something until the fetch finishes
+function TrmnlDisplay:showRefreshing()
+    self:closeRefreshing()
+    self.refresh_msg = InfoMessage:new { text = "⟳ " .. _("Refreshing…") }
+    UIManager:show(self.refresh_msg)
+end
+
+function TrmnlDisplay:closeRefreshing()
+    if self.refresh_msg then
+        UIManager:close(self.refresh_msg)
+        self.refresh_msg = nil
+    end
+end
+
+-- Every fetch ends here, success or failure
+function TrmnlDisplay:onFetchDone()
+    self:closeRefreshing()
+    self:scheduleWifiOff()
 end
 
 function TrmnlDisplay:showError(message, context)
@@ -845,6 +890,7 @@ function TrmnlDisplay:finalizeFetchSuccess(image_path)
 
     -- Clean up WiFi using KOReader's framework
     NetworkMgr:afterWifiAction()
+    self:onFetchDone()
 
     self.retry_manager:reset()
 
@@ -903,6 +949,7 @@ function TrmnlDisplay:_performFetch()
         end
         self:handleFetchError(detail or "Failed to fetch screen metadata")
         NetworkMgr:afterWifiAction()
+        self:onFetchDone()
         return
     end
 
@@ -912,6 +959,7 @@ function TrmnlDisplay:_performFetch()
     if not image_path then
         self:handleFetchError("Failed to download image")
         NetworkMgr:afterWifiAction()
+        self:onFetchDone()
         return
     end
 
@@ -1063,6 +1111,10 @@ function TrmnlDisplay:onCloseWidget()
     self:unscheduleRefreshTask()
     self.auto_refresh_scheduled = false
     self:allowAutoSuspend()
+    if self.wifi_off_task then
+        UIManager:unschedule(self.wifi_off_task)
+    end
+    self:closeRefreshing()
     if self.image_widget then
         UIManager:close(self.image_widget)
         self.image_widget = nil

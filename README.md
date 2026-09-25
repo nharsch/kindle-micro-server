@@ -51,6 +51,7 @@ cp config.example.json config.json   # add your secret iCal URL(s); gitignored
 - `http://localhost:8787/preview`: the HTML that gets screenshotted
 - `polls.csv`: one line per Kindle poll: time, battery %, MAC, forced (tap)
 - A tap on the Kindle sends `force-refresh: 1`, which makes the server skip its caches (calendar 10 min, weather 15 min, Todoist 5 min)
+- `refresh_times` (e.g. `["00:01", "06:00", "16:00"]`): the server answers each poll with the seconds until the next of these, so the Kindle only wakes Wi-Fi a few times a day. Falls back to `refresh_seconds` if unset
 - Needs Google Chrome at `/Applications/Google Chrome.app`
 - Run at login: copy `com.njh.kindle-calendar.plist` to `~/Library/LaunchAgents/` and `launchctl load -w` it
 
@@ -60,9 +61,13 @@ cp config.example.json config.json   # add your secret iCal URL(s); gitignored
 |---|---|---|
 | `njh.conf` | `/etc/upstart/njh.conf` | Runs `njh-boot.sh` at boot (`start on started framework`) |
 | `njh-boot.sh` | `/mnt/us/njh-boot.sh` | Remounts `/mnt/base-us` exec, starts SSH (:2222, key-only), keeps the Kindle awake, turns the frontlight off, launches KOReader |
-| `trmnl.koplugin/` | `/mnt/us/koreader/plugins/` | TRMNL plugin, patched: tap = refresh, long-press = close, auto-refresh survives KOReader restarts |
+| `trmnl.koplugin/` | `/mnt/us/koreader/plugins/` | TRMNL plugin, patched: tap = refresh (shows "Refreshing…"), long-press = close, auto-refresh survives KOReader restarts, **Wi-Fi on demand** (see below) |
 
 Plugin settings live in `koreader/settings/trmnl.lua` (`base_url = "http://<mac>:8787"`, `auto_refresh_enabled = true`, `refresh_type = "full"`, since partial `ui` refreshes leave e-ink ghosting). Edit it only while KOReader is stopped, and restart with `ssh -p 2222 root@<kindle> 'sh -s' < kindle/restart-koreader.sh`.
+
+### Wi-Fi on demand (power)
+
+Wi-Fi is about half the idle draw (measured ~24 mA on vs ~10.5 mA off on a PW1), so it stays off between fetches. A tap or a scheduled refresh turns it on (KOReader `wifi_enable_action = "turn_on"`), fetches, then the plugin turns it off `WIFI_WINDOW` (120 s) after the fetch finishes. Each fetch restarts the window, so **tap the screen to open a ~2-minute SSH window**. Needs, in `koreader/settings.reader.lua`: `wifi_enable_action = "turn_on"` (otherwise KOReader prompts and blocks) and `wifi_disable_action = "leave_on"` (the plugin's timer does the turning off). A tap takes ~13 s to reach the server (Wi-Fi reconnect).
 
 Kill switches (create an empty file on the Kindle's USB root): `NO_AUTOSTART` skips the whole boot script; `NO_KOREADER` keeps SSH but skips KOReader.
 

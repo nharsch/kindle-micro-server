@@ -316,6 +316,26 @@ def render_png(page_html):
 
 # --- HTTP ----------------------------------------------------------------------
 
+def next_refresh_seconds(now=None):
+    """Seconds until the next "HH:MM" in refresh_times (local time), else refresh_seconds.
+
+    The Kindle keeps Wi-Fi off between fetches and wakes it only for these (plus taps),
+    so a few fixed times a day is enough. Include one just after midnight so "Today" rolls over.
+    """
+    times = CONFIG.get("refresh_times")
+    if not times:
+        return CONFIG.get("refresh_seconds", 900)
+    now = now or datetime.now(TZ)
+    candidates = []
+    for t in times:
+        hh, mm = (int(x) for x in t.split(":"))
+        at = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if at <= now + timedelta(seconds=30):  # just fetched at this time: aim for the next one
+            at += timedelta(days=1)
+        candidates.append(at)
+    return int((min(candidates) - now).total_seconds())
+
+
 def log_poll(headers):
     with open(ROOT / "polls.csv", "a") as f:
         f.write(f'{datetime.now(TZ).isoformat(timespec="seconds")},{headers.get("percent-charged", "")},'
@@ -346,7 +366,7 @@ class Handler(BaseHTTPRequestHandler):
             body = json.dumps({
                 "image_url": f'http://{CONFIG["public_host"]}:{CONFIG["port"]}/screens/{name}',
                 "filename": name.removesuffix(".png"),
-                "refresh_rate": CONFIG.get("refresh_seconds", 900),
+                "refresh_rate": next_refresh_seconds(),
             }).encode()
             return self.send(200, body, "application/json")
         if path.startswith("/screens/") and path.endswith(".png"):
