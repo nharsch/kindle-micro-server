@@ -69,6 +69,10 @@ Plugin settings live in `koreader/settings/trmnl.lua` (`base_url = "http://<mac>
 
 Wi-Fi is about half the idle draw (measured ~24 mA on vs ~10.5 mA off on a PW1), so it stays off between fetches. A tap or a scheduled refresh turns it on (KOReader `wifi_enable_action = "turn_on"`), fetches, then the plugin turns it off `WIFI_WINDOW` (120 s) after the fetch finishes. Each fetch restarts the window, so **tap the screen to open a ~2-minute SSH window**. Needs, in `koreader/settings.reader.lua`: `wifi_enable_action = "turn_on"` (otherwise KOReader prompts and blocks) and `wifi_disable_action = "leave_on"` (the plugin's timer does the turning off). A tap takes ~13 s to reach the server (Wi-Fi reconnect).
 
+### Frontlight
+
+The plugin writes `0` to `/sys/devices/system/fl_tps6116x/fl_tps6116x0/fl_intensity` after every fetch (PW1: powerd's `flIntensity 0` still leaves the LEDs at hardware level 1). KOReader's default gestures toggle or adjust the light (notably **tap bottom-left corner = toggle frontlight**, plus left-edge and two-finger swipes), which a refresh tap can hit by accident and which roughly doubled the idle drain. They're disabled by removing the `toggle_frontlight` / `increase_frontlight` / `decrease_frontlight` actions from `koreader/settings/gestures.lua` (edit only while KOReader is stopped; a backup is at `gestures.lua.bak-njh`).
+
 Kill switches (create an empty file on the Kindle's USB root): `NO_AUTOSTART` skips the whole boot script; `NO_KOREADER` keeps SSH but skips KOReader.
 
 ### Notes on this firmware

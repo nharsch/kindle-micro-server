@@ -661,9 +661,24 @@ function TrmnlDisplay:closeRefreshing()
     end
 end
 
+-- njh patch: keep the frontlight off. A stray swipe (KOReader's frontlight gestures) or a
+-- framework event can turn it on and roughly double the idle drain, so re-assert "off" on
+-- every fetch. PW1: powerd's flIntensity 0 still leaves the LEDs at hardware level 1, so
+-- write the sysfs node directly.
+TrmnlDisplay.FL_INTENSITY_FILE = "/sys/devices/system/fl_tps6116x/fl_tps6116x0/fl_intensity"
+
+function TrmnlDisplay:forceFrontlightOff()
+    local f = io.open(self.FL_INTENSITY_FILE, "w")
+    if f then
+        f:write("0")
+        f:close()
+    end
+end
+
 -- Every fetch ends here, success or failure
 function TrmnlDisplay:onFetchDone()
     self:closeRefreshing()
+    self:forceFrontlightOff()
     self:scheduleWifiOff()
 end
 
